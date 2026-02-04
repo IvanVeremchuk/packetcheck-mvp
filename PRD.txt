@@ -1,0 +1,41 @@
+App Name: PacketCheck (MVP)
+
+One-Liner: "Drag-and-drop log analysis powered by Threat Intel & AI."
+
+Core Features (MVP):
+
+    Input: Simple "Drop Zone" box. Accepts .txt logs or .pcap files.
+
+    Processing (The "Grinder"):
+
+        Regex extracts all IPv4 addresses.
+
+        Filters out local IPs (192.168.x.x, 10.x.x.x, 127.0.0.1).
+
+        Deduplicates list.
+
+    Intelligence Layer:
+
+        Queries AbuseIPDB API for every unique IP.
+
+        Logic: If AbuseConfidenceScore > 50 → Flag as RED.
+
+    AI Layer (The Value Add):
+
+        Takes the RED IPs + the specific log line where they appeared.
+
+        Sends to GPT-4o-mini: "Explain why this IP is attacking my server and what I should do."
+
+    Output: A clean table: [IP Address] | [Country] | [Risk Score] | [AI Explanation]
+
+User Flow:
+
+    User lands on site (sees cool Spline 3D globe).
+
+    User clicks "Login" (Clerk.com).
+
+    User pastes log text.
+
+    Loading Bar (Matrix style).
+
+    Results appear.
