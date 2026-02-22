@@ -20,4 +20,4 @@ Stripe (for Checkout):
 
 - `STRIPE_SECRET_KEY`
 - `STRIPE_PRICE_ID`
-- `STRIPE_WEBHOOK_SECRET` (optional until webhook is used)
+- `STRIPE_WEBHOOK_SECRET` (required for webhook verification)

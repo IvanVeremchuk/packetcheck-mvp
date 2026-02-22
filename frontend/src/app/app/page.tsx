@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import posthog from "posthog-js";
 
 type AnalysisResult = {
@@ -16,8 +17,13 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 export default function AppPage() {
+  const { user } = useUser();
   const searchParams = useSearchParams();
   const checkoutStatus = searchParams?.get("checkout");
+  const currentPlan =
+    typeof user?.publicMetadata?.plan === "string"
+      ? user.publicMetadata.plan
+      : "free";
   const [logText, setLogText] = useState("");
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -80,6 +86,11 @@ export default function AppPage() {
           <p className="text-slate-300">
             Drop a log file or paste text to get a clear security summary.
           </p>
+          <div className="pt-2">
+            <span className="inline-flex items-center rounded-full border border-indigo-400/40 bg-indigo-500/15 px-3 py-1 text-xs font-medium uppercase tracking-wide text-indigo-200">
+              Current plan: {currentPlan}
+            </span>
+          </div>
         </header>
 
         <section className="grid gap-6 rounded-3xl border border-slate-800 bg-slate-900/40 p-6">
