@@ -1,31 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import SubscribeButton from "@/components/SubscribeButton";
 
 export default function PricingPage() {
-  const [loading, setLoading] = useState(false);
-
-  const handleCheckout = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/stripe/checkout", { method: "POST" });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || "Failed to start checkout.");
-      }
-      const data = (await response.json()) as { url?: string };
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error("Checkout URL missing.");
-      }
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Checkout failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto w-full max-w-5xl px-6 py-16">
@@ -47,13 +24,9 @@ export default function PricingPage() {
               <li>AI explanations</li>
               <li>Email support</li>
             </ul>
-            <button
-              onClick={handleCheckout}
-              disabled={loading}
-              className="mt-8 w-full rounded-full bg-indigo-500 px-6 py-3 text-white hover:bg-indigo-400 disabled:cursor-not-allowed disabled:bg-indigo-300"
-            >
-              {loading ? "Loading..." : "Subscribe"}
-            </button>
+            <div className="mt-8">
+              <SubscribeButton />
+            </div>
           </div>
           <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-8">
             <h2 className="text-2xl font-semibold">Team</h2>

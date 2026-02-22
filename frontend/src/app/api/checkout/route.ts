@@ -5,7 +5,7 @@ const stripePriceId = process.env.STRIPE_PRICE_ID;
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey)
+  ? new Stripe(stripeSecretKey, { apiVersion: "2026-01-28.clover" })
   : null;
 
 export async function POST() {

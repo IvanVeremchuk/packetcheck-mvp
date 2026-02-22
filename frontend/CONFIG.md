@@ -11,6 +11,11 @@ Required environment variables:
 - `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`: `/app`
 - `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`: `/app`
 
+PostHog:
+
+- `NEXT_PUBLIC_POSTHOG_KEY`
+- `NEXT_PUBLIC_POSTHOG_HOST`
+
 Stripe (for Checkout):
 
 - `STRIPE_SECRET_KEY`

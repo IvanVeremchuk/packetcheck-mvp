@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import posthog from "posthog-js";
 
 type AnalysisResult = {
   ip: string;
@@ -14,6 +16,8 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 export default function AppPage() {
+  const searchParams = useSearchParams();
+  const checkoutStatus = searchParams?.get("checkout");
   const [logText, setLogText] = useState("");
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,6 +43,7 @@ export default function AppPage() {
     setResults([]);
 
     try {
+      posthog.capture("analysis_started");
       const response = await fetch(`${API_BASE_URL}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,10 +57,16 @@ export default function AppPage() {
 
       const data = (await response.json()) as AnalysisResult[];
       setResults(data);
+      posthog.capture("analysis_completed", {
+        result_count: data.length,
+      });
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Unexpected error"
       );
+      posthog.capture("analysis_failed", {
+        message: error instanceof Error ? error.message : "Unexpected error",
+      });
     } finally {
       setLoading(false);
     }
@@ -72,6 +83,11 @@ export default function AppPage() {
         </header>
 
         <section className="grid gap-6 rounded-3xl border border-slate-800 bg-slate-900/40 p-6">
+          {checkoutStatus === "success" ? (
+            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+              Checkout successful. Your subscription is active.
+            </div>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
             <div>
               <label className="mb-2 block text-sm text-slate-300">
