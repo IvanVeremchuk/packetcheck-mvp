@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import posthog from "posthog-js";
 
 type AnalysisResult = {
@@ -17,6 +17,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 export default function AppPage() {
+  const { getToken } = useAuth();
   const { user } = useUser();
   const searchParams = useSearchParams();
   const checkoutStatus = searchParams?.get("checkout");
@@ -50,9 +51,13 @@ export default function AppPage() {
 
     try {
       posthog.capture("analysis_started");
+      const sessionToken = await getToken();
       const response = await fetch(`${API_BASE_URL}/analyze`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
+        },
         body: JSON.stringify({ log_text: logText }),
       });
 
