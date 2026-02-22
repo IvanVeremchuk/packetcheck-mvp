@@ -10,11 +10,14 @@ const isPublicRoute = createRouteMatcher([
   "/api/stripe/webhook",
 ]);
 
-export default clerkMiddleware((auth, req) => {
+const proxy = clerkMiddleware((auth, req) => {
   if (!isPublicRoute(req)) {
     auth.protect();
   }
 });
+
+export default proxy;
+export { proxy };
 
 export const config = {
   matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
