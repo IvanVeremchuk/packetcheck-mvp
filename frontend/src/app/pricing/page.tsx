@@ -2,6 +2,12 @@ import Link from "next/link";
 import "../landing.css";
 import PricingTable from "@/components/landing/PricingTable";
 import { AccountLink, Footer, Mark } from "@/components/landing/Chrome";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Pricing · PacketCheck",
+  description: "Free scanner and browser check. AI second opinions from $3 for 10.",
+};
 
 export default function PricingPage() {
   return (

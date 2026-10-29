@@ -160,6 +160,21 @@ export default function AppPage() {
 
   const outOfChecks = monthlyLeft <= 0 && credits <= 0;
 
+  const [portalBusy, setPortalBusy] = useState(false);
+  const openBillingPortal = async () => {
+    setPortalBusy(true);
+    try {
+      const response = await fetch("/api/billing-portal", { method: "POST" });
+      if (!response.ok) throw new Error(await readError(response, "Could not open billing."));
+      const data = (await response.json()) as { url?: string };
+      if (data.url) window.location.href = data.url;
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not open billing.");
+    } finally {
+      setPortalBusy(false);
+    }
+  };
+
   return (
     <div className="pc pc-app">
       <header className="pc-bar">
@@ -178,6 +193,14 @@ export default function AppPage() {
             <p className="pc-app__usage">
               {plan === "pro" ? "Pro" : "Free"} plan · {monthlyLeft} AI check{monthlyLeft === 1 ? "" : "s"} left this month
               {credits > 0 ? ` · ${credits} pack credit${credits === 1 ? "" : "s"}` : ""}
+              {plan === "pro" ? (
+                <>
+                  {" · "}
+                  <button type="button" className="pc-link pc-app__billing" onClick={openBillingPortal} disabled={portalBusy}>
+                    {portalBusy ? "Opening…" : "Manage billing"}
+                  </button>
+                </>
+              ) : null}
             </p>
           </div>
           <div className="ui-tabs pc-app__tabs" data-ui role="tablist" aria-label="Check type">
@@ -199,7 +222,7 @@ export default function AppPage() {
         ) : null}
 
         {tab === "scan" ? (
-          <div className="pc-app__grid">
+          <div className="pc-app__grid ph-no-capture">
             <section className="pc-app__in" aria-labelledby="report-label">
               <div className="pc-app__label">
                 <label id="report-label" htmlFor="report">Scanner report or netstat / ss / lsof output</label>
@@ -288,7 +311,7 @@ export default function AppPage() {
             </section>
           </div>
         ) : (
-          <div className="pc-app__grid">
+          <div className="pc-app__grid ph-no-capture">
             <section className="pc-app__in" aria-labelledby="logs-label">
               <div className="pc-app__label">
                 <label id="logs-label" htmlFor="logs">SSH, firewall or web server log</label>

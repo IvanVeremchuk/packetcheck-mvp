@@ -23,7 +23,7 @@ export default function PasteChecker() {
   const isSample = text === SAMPLE_WINDOWS_NETSTAT;
 
   return (
-    <section className="pc-split" id="check" aria-labelledby="check-title">
+    <section className="pc-split ph-no-capture" id="check" aria-labelledby="check-title">
       <div className="pc-split__in">
         <div className="pc-split__label">
           <label htmlFor="pc-input">
