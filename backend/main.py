@@ -2,15 +2,23 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from utils import extract_ips, check_ip_abuse, explain_ip_activity
+from utils import extract_ips, check_ip_abuse, explain_ip_activity, explain_scan
 import os
 import jwt
+import requests
+from datetime import datetime
 from jwt import InvalidTokenError, PyJWKClient
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = FastAPI()
+
+# AI checks included each month. Credits from one-time packs are used after these.
+FREE_TIER_LIMIT = int(os.getenv("FREE_MONTHLY_CHECKS", "3"))
+PRO_MONTHLY_LIMIT = int(os.getenv("PRO_MONTHLY_CHECKS", "150"))
+MAX_SCAN_CHARS = 60_000
+MAX_IP_LOOKUPS = 12
 
 # Add CORS middleware with explicit allowed frontend origins
 app.add_middleware(
@@ -76,12 +84,110 @@ def verify_clerk_token(authorization: str = Header(default=None)) -> str:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+def _get_clerk_user_metadata(user_id: str) -> dict:
+    """Fetch user from Clerk API and return public_metadata."""
+    secret_key = os.getenv("CLERK_SECRET_KEY")
+    if not secret_key:
+        return {}
+    url = f"https://api.clerk.com/v1/users/{user_id}"
+    resp = requests.get(url, headers={"Authorization": f"Bearer {secret_key}"}, timeout=10)
+    if resp.status_code != 200:
+        return {}
+    data = resp.json()
+    return data.get("public_metadata") or {}
+
+
+def _update_clerk_user_metadata(user_id: str, public_metadata: dict) -> bool:
+    """Update user public_metadata via Clerk API."""
+    secret_key = os.getenv("CLERK_SECRET_KEY")
+    if not secret_key:
+        return False
+    url = f"https://api.clerk.com/v1/users/{user_id}/metadata"
+    resp = requests.patch(
+        url,
+        headers={"Authorization": f"Bearer {secret_key}", "Content-Type": "application/json"},
+        json={"public_metadata": public_metadata},
+        timeout=10,
+    )
+    return resp.status_code == 200
+
+
+def reserve_usage(user_id: str) -> dict:
+    """
+    Decide which allowance pays for one AI check, without charging yet.
+
+    Order: the monthly allowance (free or Pro), then prepaid credits from a
+    one-time pack. Raises 403 when nothing is left. Pass the returned dict to
+    commit_usage() once the check has succeeded, so failures cost nothing.
+    """
+    metadata = _get_clerk_user_metadata(user_id)
+    plan = metadata.get("plan", "free")
+    monthly_limit = PRO_MONTHLY_LIMIT if plan == "pro" else FREE_TIER_LIMIT
+
+    current_month = datetime.utcnow().strftime("%Y-%m")
+    analyses_count = int(metadata.get("analyses_count", 0) or 0)
+    if metadata.get("analyses_month", "") != current_month:
+        analyses_count = 0
+    credits = int(metadata.get("credits", 0) or 0)
+
+    if analyses_count < monthly_limit:
+        source = "monthly"
+    elif credits > 0:
+        source = "credits"
+    else:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"You've used this month's {monthly_limit} AI checks. "
+                "A 10-check pack is $3 and never expires."
+            ),
+        )
+
+    return {
+        "metadata": metadata,
+        "source": source,
+        "month": current_month,
+        "analyses_count": analyses_count,
+        "credits": credits,
+    }
+
+
+def commit_usage(user_id: str, reservation: dict) -> dict:
+    """Charge the allowance chosen by reserve_usage(). Returns what is left."""
+    metadata = reservation["metadata"]
+    analyses_count = reservation["analyses_count"]
+    credits = reservation["credits"]
+    if reservation["source"] == "monthly":
+        analyses_count += 1
+    else:
+        credits = max(credits - 1, 0)
+    new_metadata = {
+        **metadata,
+        "analyses_month": reservation["month"],
+        "analyses_count": analyses_count,
+        "credits": credits,
+    }
+    _update_clerk_user_metadata(user_id, new_metadata)
+    plan = metadata.get("plan", "free")
+    monthly_limit = PRO_MONTHLY_LIMIT if plan == "pro" else FREE_TIER_LIMIT
+    return {
+        "plan": plan,
+        "monthly_left": max(monthly_limit - analyses_count, 0),
+        "credits": credits,
+    }
+
+
+def check_and_increment_usage(user_id: str) -> None:
+    """Charge one check up front (used by the IP log analysis)."""
+    commit_usage(user_id, reserve_usage(user_id))
+
+
 class LogText(BaseModel):
     log_text: str
 
 
 @app.post("/analyze")
-async def analyze_log(log: LogText, _: str = Depends(verify_clerk_token)):
+async def analyze_log(log: LogText, user_id: str = Depends(verify_clerk_token)):
     """
     Analyze log text to extract IP addresses and check them against AbuseIPDB.
     
@@ -91,6 +197,8 @@ async def analyze_log(log: LogText, _: str = Depends(verify_clerk_token)):
     Returns:
         List of IP analysis results with ip, risk_score, and country
     """
+    check_and_increment_usage(user_id)
+
     # Validate that ABUSE_IP_KEY is set
     if not os.getenv("ABUSE_IP_KEY"):
         raise HTTPException(
@@ -151,6 +259,64 @@ async def analyze_log(log: LogText, _: str = Depends(verify_clerk_token)):
             })
     
     return results
+
+
+class LocalFinding(BaseModel):
+    severity: str
+    title: str
+    detail: str = ""
+    evidence: list[str] = []
+
+
+class ScanRequest(BaseModel):
+    report_text: str
+    local_findings: list[LocalFinding] = []
+    local_verdict: str = ""
+
+
+@app.post("/scan")
+def scan_report(req: ScanRequest, user_id: str = Depends(verify_clerk_token)):
+    """
+    AI second opinion on a remote-access scan.
+
+    The browser already ran the free rule check and sends its findings with the
+    condensed report. We look up the reputation of the public addresses the
+    computer is talking to, ask the model for a plain-language verdict, and only
+    then charge one check.
+    """
+    report = req.report_text.strip()
+    if not report:
+        raise HTTPException(status_code=400, detail="The report is empty.")
+    if len(report) > MAX_SCAN_CHARS:
+        report = report[:MAX_SCAN_CHARS]
+
+    reservation = reserve_usage(user_id)
+
+    ip_reputation = []
+    if os.getenv("ABUSE_IP_KEY"):
+        for ip in extract_ips(report)[:MAX_IP_LOOKUPS]:
+            try:
+                data = check_ip_abuse(ip).get("data") or {}
+                ip_reputation.append({
+                    "ip": ip,
+                    "risk_score": data.get("abuseConfidenceScore", 0),
+                    "country": data.get("countryCode") or "",
+                    "owner": data.get("isp") or data.get("domain") or "",
+                })
+            except Exception:
+                continue
+
+    try:
+        opinion = explain_scan(
+            report,
+            [f.model_dump() for f in req.local_findings[:25]],
+            ip_reputation,
+        )
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"AI check failed, you were not charged: {error}")
+
+    usage = commit_usage(user_id, reservation)
+    return {**opinion, "ip_reputation": ip_reputation, "usage": usage}
 
 
 @app.get("/")

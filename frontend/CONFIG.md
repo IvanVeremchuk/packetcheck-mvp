@@ -19,5 +19,15 @@ PostHog:
 Stripe (for Checkout):
 
 - `STRIPE_SECRET_KEY`
-- `STRIPE_PRICE_ID`
+- `STRIPE_PRICE_ID` (monthly Pro subscription, $5)
+- `STRIPE_PACK_PRICE_ID` (one-time price, $3 for a 10-check pack)
+- `PACK_CREDITS` (optional, default 10: checks added per pack)
 - `STRIPE_WEBHOOK_SECRET` (required for webhook verification)
+- Webhook events: `checkout.session.completed`, `customer.subscription.deleted`
+
+## Deployment (Render backend + Vercel frontend)
+
+1. After deploying backend on Render, note the service URL (e.g. `https://packetcheck-mvp.onrender.com`).
+2. In Vercel: Project → Settings → Environment Variables.
+3. Set `NEXT_PUBLIC_API_BASE_URL` to your Render URL (e.g. `https://packetcheck-mvp.onrender.com`).
+4. Redeploy the frontend (Deployments → ⋮ on latest → Redeploy, or push a commit).

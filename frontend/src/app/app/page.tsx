@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useAuth, useUser } from "@clerk/nextjs";
+import { useAuth, useUser, UserButton } from "@clerk/nextjs";
 import posthog from "posthog-js";
+import "../landing.css";
+import { analyze, condenseForAI } from "@/lib/scan/analyze";
+import ScanResultView from "@/components/scan/ScanResultView";
+import SubscribeButton from "@/components/SubscribeButton";
+import { Mark } from "@/components/landing/Chrome";
+import { REPORT_KEY } from "@/components/landing/PasteChecker";
 
 type AnalysisResult = {
   ip: string;
@@ -13,30 +20,111 @@ type AnalysisResult = {
   error?: string;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+type Opinion = {
+  verdict: "clear" | "review" | "alert";
+  headline: string;
+  summary: string;
+  items: Array<{ title: string; severity: "high" | "medium" | "low" | "ok"; explanation: string; action: string }>;
+  next_steps: string[];
+  ip_reputation: Array<{ ip: string; risk_score: number; country: string; owner: string }>;
+  usage?: { plan: string; monthly_left: number; credits: number };
+};
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+const FREE_MONTHLY = 3;
+const PRO_MONTHLY = 150;
+
+async function readError(response: Response, fallback: string) {
+  const body = await response.text();
+  try {
+    const json = JSON.parse(body);
+    if (typeof json.detail === "string") return json.detail;
+  } catch {
+    // not JSON
+  }
+  return body || fallback;
+}
 
 export default function AppPage() {
   const { getToken } = useAuth();
   const { user } = useUser();
   const searchParams = useSearchParams();
   const checkoutStatus = searchParams?.get("checkout");
-  const currentPlan =
-    typeof user?.publicMetadata?.plan === "string"
-      ? user.publicMetadata.plan
-      : "free";
+  const [tab, setTab] = useState<"scan" | "logs">(searchParams?.get("tab") === "logs" ? "logs" : "scan");
+
+  const meta = (user?.publicMetadata ?? {}) as Record<string, unknown>;
+  const plan = typeof meta.plan === "string" ? meta.plan : "free";
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const used = meta.analyses_month === thisMonth ? Number(meta.analyses_count ?? 0) : 0;
+  const limit = plan === "pro" ? PRO_MONTHLY : FREE_MONTHLY;
+  const [usage, setUsage] = useState<{ monthly_left: number; credits: number } | null>(null);
+  const monthlyLeft = usage?.monthly_left ?? Math.max(limit - used, 0);
+  const credits = usage?.credits ?? Number(meta.credits ?? 0);
+
+  // ---- remote-access scan
+  const [report, setReport] = useState("");
+  const local = useMemo(() => analyze(report), [report]);
+  const [opinion, setOpinion] = useState<Opinion | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const pending = sessionStorage.getItem(REPORT_KEY);
+      if (pending) {
+        // One-time handoff from the landing page; sessionStorage only exists after hydration.
+        setReport(pending);
+        sessionStorage.removeItem(REPORT_KEY);
+      }
+    } catch {
+      // storage unavailable
+    }
+  }, []);
+
+  const askAI = async () => {
+    setAsking(true);
+    setScanError(null);
+    setOpinion(null);
+    try {
+      posthog.capture("scan_ai_started", { local_verdict: local.verdict, findings: local.findings.length });
+      const token = await getToken();
+      const response = await fetch(`${API_BASE_URL}/scan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          report_text: condenseForAI(report),
+          local_verdict: local.verdict,
+          local_findings: local.findings.map((f) => ({
+            severity: f.severity,
+            title: f.title,
+            detail: f.detail,
+            evidence: f.evidence,
+          })),
+        }),
+      });
+      if (!response.ok) throw new Error(await readError(response, "The AI check failed."));
+      const data = (await response.json()) as Opinion;
+      setOpinion(data);
+      if (data.usage) setUsage(data.usage);
+      posthog.capture("scan_ai_completed", { verdict: data.verdict });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error";
+      setScanError(message);
+      posthog.capture("scan_ai_failed", { message });
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  // ---- IP log analysis (existing feature)
   const [logText, setLogText] = useState("");
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleFileChange = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const readFile = async (event: React.ChangeEvent<HTMLInputElement>, set: (t: string) => void) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    setLogText(text);
+    if (file) set(await file.text());
   };
 
   const handleAnalyze = async () => {
@@ -44,11 +132,9 @@ export default function AppPage() {
       setErrorMessage("Paste log text or upload a .txt file first.");
       return;
     }
-
     setLoading(true);
     setErrorMessage(null);
     setResults([]);
-
     try {
       posthog.capture("analysis_started");
       const sessionToken = await getToken();
@@ -60,123 +146,194 @@ export default function AppPage() {
         },
         body: JSON.stringify({ log_text: logText }),
       });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(body || "Failed to analyze logs.");
-      }
-
+      if (!response.ok) throw new Error(await readError(response, "Failed to analyze logs."));
       const data = (await response.json()) as AnalysisResult[];
       setResults(data);
-      posthog.capture("analysis_completed", {
-        result_count: data.length,
-      });
+      posthog.capture("analysis_completed", { result_count: data.length });
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Unexpected error"
-      );
-      posthog.capture("analysis_failed", {
-        message: error instanceof Error ? error.message : "Unexpected error",
-      });
+      setErrorMessage(error instanceof Error ? error.message : "Unexpected error");
+      posthog.capture("analysis_failed", { message: error instanceof Error ? error.message : "Unexpected error" });
     } finally {
       setLoading(false);
     }
   };
 
+  const outOfChecks = monthlyLeft <= 0 && credits <= 0;
+
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto w-full max-w-5xl px-6 py-10">
-        <header className="mb-10 space-y-2">
-          <h1 className="text-3xl font-semibold">PacketCheck Dashboard</h1>
-          <p className="text-slate-300">
-            Drop a log file or paste text to get a clear security summary.
+    <div className="pc pc-app">
+      <header className="pc-bar">
+        <Mark />
+        <nav aria-label="Main">
+          <Link href="/#scan">Download scanner</Link>
+          <Link href="/pricing">Pricing</Link>
+          <UserButton />
+        </nav>
+      </header>
+
+      <main className="pc-app__main">
+        <div className="pc-app__head">
+          <div>
+            <h1 className="pc-h2">Your checks</h1>
+            <p className="pc-app__usage">
+              {plan === "pro" ? "Pro" : "Free"} plan · {monthlyLeft} AI check{monthlyLeft === 1 ? "" : "s"} left this month
+              {credits > 0 ? ` · ${credits} pack credit${credits === 1 ? "" : "s"}` : ""}
+            </p>
+          </div>
+          <div className="ui-tabs pc-app__tabs" data-ui role="tablist" aria-label="Check type">
+            <button role="tab" type="button" className="ui-tab" aria-selected={tab === "scan"} onClick={() => setTab("scan")}>
+              Remote-access scan
+            </button>
+            <button role="tab" type="button" className="ui-tab" aria-selected={tab === "logs"} onClick={() => setTab("logs")}>
+              Server log IPs
+            </button>
+          </div>
+        </div>
+
+        {checkoutStatus === "pack" || checkoutStatus === "pro" || checkoutStatus === "success" ? (
+          <p className="pc-app__notice">
+            {checkoutStatus === "pack"
+              ? "Payment received. Your 10 checks appear within a few seconds; refresh if they don't."
+              : "Payment received. Pro is active."}
           </p>
-          <div className="pt-2">
-            <span className="inline-flex items-center rounded-full border border-indigo-400/40 bg-indigo-500/15 px-3 py-1 text-xs font-medium uppercase tracking-wide text-indigo-200">
-              Current plan: {currentPlan}
-            </span>
-          </div>
-        </header>
+        ) : null}
 
-        <section className="grid gap-6 rounded-3xl border border-slate-800 bg-slate-900/40 p-6">
-          {checkoutStatus === "success" ? (
-            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
-              Checkout successful. Your subscription is active.
-            </div>
-          ) : null}
-          <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">
-                Paste log text
-              </label>
+        {tab === "scan" ? (
+          <div className="pc-app__grid">
+            <section className="pc-app__in" aria-labelledby="report-label">
+              <div className="pc-app__label">
+                <label id="report-label" htmlFor="report">Scanner report or netstat / ss / lsof output</label>
+                <label className="pc-link pc-app__file">
+                  Open file
+                  <input type="file" accept=".txt,.log" onChange={(e) => readFile(e, setReport)} />
+                </label>
+              </div>
               <textarea
-                className="h-40 w-full rounded-2xl border border-slate-700 bg-slate-950 p-4 text-sm text-slate-100"
-                placeholder="Paste Wireshark or server logs here..."
-                value={logText}
-                onChange={(event) => setLogText(event.target.value)}
+                id="report"
+                value={report}
+                onChange={(e) => {
+                  setReport(e.target.value);
+                  setOpinion(null);
+                }}
+                spellCheck={false}
+                placeholder={"Paste packetcheck-report.txt here.\nNo report yet? Download the scanner from the home page."}
               />
-            </div>
-            <div className="space-y-3">
-              <label className="block text-sm text-slate-300">
-                Or upload .txt
-              </label>
-              <input
-                type="file"
-                accept=".txt"
-                onChange={handleFileChange}
-                className="block w-full text-sm text-slate-300 file:mr-4 file:rounded-full file:border-0 file:bg-indigo-500 file:px-4 file:py-2 file:text-white hover:file:bg-indigo-400"
-              />
-              <button
-                onClick={handleAnalyze}
-                disabled={loading}
-                className="w-full rounded-full bg-indigo-500 px-6 py-3 text-white hover:bg-indigo-400 disabled:cursor-not-allowed disabled:bg-indigo-300"
-              >
-                {loading ? "Analyzing..." : "Analyze logs"}
-              </button>
-            </div>
+              <div className="pc-app__actions">
+                {outOfChecks ? (
+                  <SubscribeButton kind="pack" label="Buy 10 checks for $3" className="pc-btn" />
+                ) : (
+                  <button type="button" className="pc-btn" onClick={askAI} disabled={asking || local.verdict === "empty"}>
+                    {asking ? "Asking the AI…" : "Get the AI second opinion"}
+                  </button>
+                )}
+                <span className="pc-app__hint">Uses 1 check. If it fails, you are not charged.</span>
+              </div>
+              {scanError ? <p className="pc-app__error" role="alert">{scanError}</p> : null}
+            </section>
+
+            <section className="pc-app__out" aria-label="Results">
+              {opinion ? (
+                <div data-ui className="pc-opinion">
+                  <div className={`pc-result__verdict pc-result__verdict--${opinion.verdict}`}>
+                    <strong>{opinion.headline || "AI second opinion"}</strong>
+                    <p>{opinion.summary}</p>
+                  </div>
+                  <ul className="pc-result__list" style={{ maxHeight: "none" }}>
+                    {opinion.items.map((item) => (
+                      <li key={item.title} className="pc-finding" style={{ padding: "12px 14px" }}>
+                        <div className="ui-row" style={{ alignItems: "start" }}>
+                          <span className={`ui-pill ui-pill--${item.severity === "ok" ? "ok" : item.severity}`}>
+                            <span className="ui-dot" />
+                            {item.severity === "ok" ? "Normal" : item.severity === "high" ? "High" : item.severity === "medium" ? "Check" : "Low"}
+                          </span>
+                          <span className="pc-finding__title">{item.title}</span>
+                        </div>
+                        <p style={{ marginTop: 8 }}>{item.explanation}</p>
+                        {item.action ? <p style={{ marginTop: 6 }}><b>What to do:</b> {item.action}</p> : null}
+                      </li>
+                    ))}
+                  </ul>
+                  {opinion.next_steps.length > 0 ? (
+                    <div className="pc-opinion__steps">
+                      <strong>Next steps</strong>
+                      <ol>{opinion.next_steps.map((s) => <li key={s}>{s}</li>)}</ol>
+                    </div>
+                  ) : null}
+                  {opinion.ip_reputation.length > 0 ? (
+                    <table className="pc-ip">
+                      <caption>Internet addresses checked on AbuseIPDB</caption>
+                      <thead><tr><th>Address</th><th>Abuse score</th><th>Country</th><th>Owner</th></tr></thead>
+                      <tbody>
+                        {opinion.ip_reputation.map((r) => (
+                          <tr key={r.ip}>
+                            <td><code>{r.ip}</code></td>
+                            <td className={r.risk_score >= 50 ? "is-bad" : undefined}>{r.risk_score}</td>
+                            <td>{r.country || "?"}</td>
+                            <td>{r.owner || "unknown"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : null}
+                  <details className="pc-opinion__local">
+                    <summary>Show the free rule check ({local.findings.length} findings)</summary>
+                    <ScanResultView result={local} />
+                  </details>
+                </div>
+              ) : (
+                <div data-ui style={{ border: 0, background: "transparent" }}>
+                  <ScanResultView result={local} />
+                </div>
+              )}
+            </section>
           </div>
-
-          {errorMessage ? (
-            <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
-              {errorMessage}
-            </div>
-          ) : null}
-
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-            <h2 className="mb-4 text-lg font-semibold">Results</h2>
-            {results.length === 0 ? (
-              <p className="text-sm text-slate-400">
-                Results will appear here after analysis.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="text-slate-400">
-                    <tr>
-                      <th className="py-2">IP Address</th>
-                      <th className="py-2">Country</th>
-                      <th className="py-2">Risk Score</th>
-                      <th className="py-2">AI Explanation</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-slate-200">
+        ) : (
+          <div className="pc-app__grid">
+            <section className="pc-app__in" aria-labelledby="logs-label">
+              <div className="pc-app__label">
+                <label id="logs-label" htmlFor="logs">SSH, firewall or web server log</label>
+                <label className="pc-link pc-app__file">
+                  Open file
+                  <input type="file" accept=".txt,.log" onChange={(e) => readFile(e, setLogText)} />
+                </label>
+              </div>
+              <textarea
+                id="logs"
+                value={logText}
+                onChange={(e) => setLogText(e.target.value)}
+                spellCheck={false}
+                placeholder="Feb 03 10:12:01 server sshd[1234]: Failed password for root from 192.0.2.1"
+              />
+              <div className="pc-app__actions">
+                <button type="button" className="pc-btn" onClick={handleAnalyze} disabled={loading}>
+                  {loading ? "Checking addresses…" : "Check the IPs in this log"}
+                </button>
+                <span className="pc-app__hint">Every public IP is looked up on AbuseIPDB. Uses 1 check.</span>
+              </div>
+              {errorMessage ? <p className="pc-app__error" role="alert">{errorMessage}</p> : null}
+            </section>
+            <section className="pc-app__out" aria-label="Results">
+              {results.length === 0 ? (
+                <p className="pc-app__hint">Addresses with an abuse score over 50 get an AI explanation.</p>
+              ) : (
+                <table className="pc-ip" data-ui>
+                  <thead><tr><th>Address</th><th>Country</th><th>Abuse score</th><th>What it means</th></tr></thead>
+                  <tbody>
                     {results.map((item) => (
-                      <tr key={item.ip} className="border-t border-slate-800">
-                        <td className="py-3">{item.ip}</td>
-                        <td className="py-3">{item.country}</td>
-                        <td className="py-3">{item.risk_score}</td>
-                        <td className="py-3 text-slate-300">
-                          {item.ai_explanation || "No AI explanation."}
-                        </td>
+                      <tr key={item.ip}>
+                        <td><code>{item.ip}</code></td>
+                        <td>{item.country}</td>
+                        <td className={item.risk_score >= 50 ? "is-bad" : undefined}>{item.risk_score}</td>
+                        <td style={{ whiteSpace: "pre-wrap" }}>{item.error || item.ai_explanation || "Nothing reported."}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
+              )}
+            </section>
           </div>
-        </section>
-      </div>
+        )}
+      </main>
     </div>
   );
 }

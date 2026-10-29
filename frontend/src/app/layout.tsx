@@ -16,8 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PacketCheck",
-  description: "Drag-and-drop log analysis powered by Threat Intel & AI.",
+  title: "PacketCheck: is anyone else on your computer?",
+  description:
+    "A free 30-second, read-only scan for Remote Desktop, remote-control apps and backdoors. Paste your report or netstat output for an instant check.",
 };
 
 export default function RootLayout({
@@ -27,6 +28,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://api.fontshare.com" />
+        <link rel="preconnect" href="https://cdn.fontshare.com" crossOrigin="" />
+        <link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500&display=swap" rel="stylesheet" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
