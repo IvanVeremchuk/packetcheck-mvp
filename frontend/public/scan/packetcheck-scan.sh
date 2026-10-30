@@ -10,7 +10,7 @@
 #   sudo sh packetcheck-scan.sh       # also names processes owned by other users
 
 OUT="${PACKETCHECK_OUT:-$HOME/packetcheck-report.txt}"
-TOOLS='teamviewer|anydesk|rustdesk|screenconnect|connectwise|splashtop|logmein|gotoassist|ammyy|vnc|x11vnc|netsupport|atera|meshagent|simplehelp|supremo|remotepc|zohoassist|dwagent|radmin|action1|kaseya|tacticalrmm|ngrok|cloudflared|chisel|frpc|frps|socat|ncat|netcat|remoting_host|chrome-remote-desktop|beyondtrust|bomgar|nomachine|nxserver|pulseway|ninjarmm|syncro|meterpreter|sliver|havoc'
+TOOLS='teamviewer|anydesk|rustdesk|screenconnect|connectwise|splashtop|logmein|gotoassist|ammyy|vnc|x11vnc|netsupport|atera|meshagent|simplehelp|supremo|remotepc|zohoassist|dwagent|radmin|action1|kaseya|tacticalrmm|ngrok|cloudflared|chisel|frpc|frps|socat|ncat|netcat|remoting_host|chrome-remote-desktop|beyondtrust|bomgar|nomachine|nxserver|pulseway|ninjarmm|syncro|meterpreter|sliver|havoc|hoptodesk|todesk|getscreen'
 OS=$(uname -s)
 START=$(date +%s)
 

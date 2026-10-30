@@ -12,6 +12,10 @@ const QA: Array<{ q: string; a: string }> = [
     a: "Not for the free check: it runs in your browser. Only when you ask for an AI second opinion do we send the report, with local chatter removed, to the AI model and the public IPs to AbuseIPDB. We don't store it.",
   },
   {
+    q: "Will PacketCheck ever call me?",
+    a: "Never. Nobody from PacketCheck will phone you, show a pop-up warning or ask to connect to your computer. Scammers borrow the names of real tools; if someone says they are from PacketCheck and asks for access, hang up.",
+  },
+  {
     q: "I deleted the fishy app. Why does it still show?",
     a: "Remote-control tools install a service and a startup entry of their own. Removing the app you clicked on often leaves those behind, which is exactly what the scan looks for.",
   },

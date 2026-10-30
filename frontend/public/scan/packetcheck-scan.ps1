@@ -24,7 +24,7 @@ function Emit([object[]]$parts) {
 }
 
 # Names of remote-access tools, tunnels and known remote-access trojans.
-$remoteTools = 'teamviewer|anydesk|rustdesk|screenconnect|connectwise|splashtop|logmein|gotoassist|goto resolve|ammyy|vnc|winvnc|tvnserver|netsupport|client32|rutserv|rfusclient|remote utilities|atera|meshagent|mesh agent|simplehelp|supremo|remotepc|zoho assist|zohoassist|dwagent|dwservice|radmin|action1|kaseya|tacticalrmm|ngrok|cloudflared|chisel|frpc|plink|remoting_host|chrome remote desktop|beyondtrust|bomgar|nomachine|nxserver|itarian|pulseway|ninjarmm|syncro|quasar|asyncrat|njrat|remcos|darkcomet|nanocore|dcrat|xworm|warzone|netwire|meterpreter'
+$remoteTools = 'teamviewer|anydesk|rustdesk|screenconnect|connectwise|splashtop|logmein|gotoassist|goto resolve|ammyy|vnc|winvnc|tvnserver|netsupport|client32|rutserv|rfusclient|remote utilities|atera|meshagent|mesh agent|simplehelp|supremo|remotepc|zoho assist|zohoassist|dwagent|dwservice|radmin|action1|kaseya|tacticalrmm|ngrok|cloudflared|chisel|frpc|plink|remoting_host|chrome remote desktop|beyondtrust|bomgar|nomachine|nxserver|itarian|pulseway|ninjarmm|syncro|quasar|asyncrat|njrat|remcos|darkcomet|nanocore|dcrat|xworm|warzone|netwire|meterpreter|ultraviewer|hoptodesk|aeroadmin|todesk|iperius|getscreen|quickassist'
 
 Write-Host ''
 Write-Host '  PacketCheck quick scan' -ForegroundColor Green

@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useMemo, useState } from "react";
 import Link from "next/link";
+import posthog from "posthog-js";
 import { SignedIn, SignedOut, SignUpButton } from "@clerk/nextjs";
 import { analyze, SAMPLE_WINDOWS_NETSTAT } from "@/lib/scan/analyze";
 import ScanResultView from "@/components/scan/ScanResultView";
@@ -39,6 +40,11 @@ export default function PasteChecker() {
           id="pc-input"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => {
+            // Only the shape of the result is recorded, never the pasted text.
+            const pasted = analyze(e.clipboardData.getData("text"));
+            posthog.capture("paste_checked", { format: pasted.format, verdict: pasted.verdict, findings: pasted.findings.length });
+          }}
           spellCheck={false}
           autoComplete="off"
           placeholder={"Paste the scanner report here,\nor netstat -ano, ss -tunap, lsof -i output."}

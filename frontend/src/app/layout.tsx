@@ -16,9 +16,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://packetcheck.net"),
   title: "PacketCheck: is anyone else on your computer?",
   description:
     "A free 30-second, read-only scan for Remote Desktop, remote-control apps and backdoors. Paste your report or netstat output for an instant check.",
+  openGraph: {
+    siteName: "PacketCheck",
+    type: "website",
+    title: "Is anyone else on your computer?",
+    description: "A 30-second, read-only check for remote access. Free, and nothing is uploaded.",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({

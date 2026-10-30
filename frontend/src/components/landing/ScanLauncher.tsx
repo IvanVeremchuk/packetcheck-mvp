@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import posthog from "posthog-js";
 import { SCANNERS, type OS } from "@/lib/scan/scanners";
 
 export function detectOS(): OS {
@@ -11,7 +12,7 @@ export function detectOS(): OS {
   return "windows";
 }
 
-export function CopyButton({ text }: { text: string }) {
+export function CopyButton({ text, onCopied }: { text: string; onCopied?: () => void }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -20,6 +21,7 @@ export function CopyButton({ text }: { text: string }) {
         try {
           await navigator.clipboard.writeText(text);
           setCopied(true);
+          onCopied?.();
           setTimeout(() => setCopied(false), 1600);
         } catch {
           setCopied(false);
@@ -77,7 +79,12 @@ export default function ScanLauncher() {
       <ol className="pc-launcher__steps">
         <li>
           <span className="ui-muted">1. Download the scanner. It is plain text you can read first.</span>
-          <a className="pc-launcher__dl" href={`/scan/${s.file}`} download>
+          <a
+            className="pc-launcher__dl"
+            href={`/scan/${s.file}`}
+            download
+            onClick={() => posthog.capture("scanner_downloaded", { os })}
+          >
             <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M8 2v9m0 0 3.5-3.5M8 11 4.5 7.5M3 14h10" /></svg>
             {s.file}
           </a>
@@ -86,7 +93,7 @@ export default function ScanLauncher() {
           <span className="ui-muted">2. {s.where}</span>
           <div className="ui-cmd">
             <code>{s.run}</code>
-            <CopyButton text={s.run} />
+            <CopyButton text={s.run} onCopied={() => posthog.capture("command_copied", { os })} />
           </div>
         </li>
         <li>

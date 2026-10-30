@@ -1,0 +1,23 @@
+#PACKETCHECK v1 os=windows date=2026-10-29T19:42:10
+INFO	os	Microsoft Windows 11 Home 10.0.22631
+INFO	elevated	0
+LISTEN	TCP	0.0.0.0	135	1048	svchost	C:\Windows\system32\svchost.exe
+LISTEN	TCP	0.0.0.0	445	4	System	
+LISTEN	TCP	0.0.0.0	3389	1260	svchost	C:\Windows\System32\svchost.exe
+LISTEN	TCP	0.0.0.0	5040	6412	svchost	C:\Windows\system32\svchost.exe
+CONN	TCP	192.168.1.24	49702	52.112.94.40	443	Established	9104	ms-teams	C:\Program Files\WindowsApps\MSTeams\ms-teams.exe
+CONN	TCP	192.168.1.24	49731	20.190.151.68	443	Established	5120	OneDrive	C:\Users\Ruth\AppData\Local\Microsoft\OneDrive\OneDrive.exe
+CONN	TCP	192.168.1.24	49744	142.250.80.46	443	Established	7740	chrome	C:\Program Files\Google\Chrome\Application\chrome.exe
+CONN	TCP	192.168.1.24	49790	185.229.191.39	443	Established	4120	UltraViewer_Service	C:\Program Files (x86)\UltraViewer\UltraViewer_Service.exe
+CONN	TCP	192.168.1.24	49812	45.137.21.9	4444	Established	3316	svchost32	C:\Users\Ruth\AppData\Local\Temp\svchost32.exe
+RDP	enabled	1
+RDP	port	3389
+RDP	nla	1
+SERVICE	UltraViewer_Service	Running	Auto	"C:\Program Files (x86)\UltraViewer\UltraViewer_Service.exe"
+PROC	UltraViewer_Service.exe	4120	C:\Program Files (x86)\UltraViewer\UltraViewer_Service.exe
+AUTORUN	HKCU:\Software\Microsoft\Windows\CurrentVersion\Run	WinUpdateHelper	C:\Users\Ruth\AppData\Local\Temp\svchost32.exe -silent
+ADMIN	DESKTOP-R7\Ruth	Local
+ADMIN	DESKTOP-R7\support	Local
+AV	defender_realtime	1
+AV	defender_antivirus	1
+INFO	seconds	4.6

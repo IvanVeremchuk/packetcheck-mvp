@@ -1,0 +1,66 @@
+/* Shared look for PacketCheck marketing images. Values match frontend/src/app/landing.css. */
+:root {
+  --bg: #ddd6c6;
+  --surface: #d2cab8;
+  --ink: #2a2a26;
+  --muted: #4f4d45;
+  --deep: #2a2a26;
+  --on-deep: #e8e6e0;
+  --on-deep-muted: #b9b3a3;
+  --accent: #4f6238;
+  --field: #3f5a2a;
+  --ui-bg: #efeeea;
+  --ui-line: #cfc7b3;
+  --ui-text: #23231f;
+  --ui-muted: #5d5a50;
+  --high: #a8261b;
+  --high-bg: #f3dcd6;
+  --medium: #7a5a00;
+  --medium-bg: #f1e6c4;
+  --ok: #3f5a2a;
+  --ok-bg: #dde5cf;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; }
+body {
+  font-family: "Switzer", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+.card { position: relative; width: 100vw; height: 100vh; overflow: hidden; display: flex; }
+.card--deep { background: var(--deep); color: var(--on-deep); }
+.card--field { background: var(--field); color: #fff; }
+
+.mark { display: inline-flex; align-items: center; gap: 0.55em; font-weight: 500; letter-spacing: -0.01em; }
+.mark svg { width: 1.6em; height: 1.6em; display: block; }
+
+h1, .h { font-weight: 500; letter-spacing: -0.035em; line-height: 0.98; }
+.lead { line-height: 1.35; letter-spacing: -0.005em; }
+.muted { color: var(--muted); }
+.card--deep .muted { color: var(--on-deep-muted); }
+.url { font-weight: 500; letter-spacing: -0.01em; }
+
+/* Interface fragments, as on the site. */
+.ui { background: var(--ui-bg); color: var(--ui-text); border: 1px solid var(--ui-line); border-radius: 10px; }
+.term { background: #1f1f1c; color: #d9d6cc; border-radius: 10px; font-family: var(--mono); white-space: pre; line-height: 1.55; }
+.t-ok { color: #a9c48a; }
+.t-dim { color: #8f8b80; }
+.t-warn { color: #e2b45a; }
+
+.pill { display: inline-block; font-size: 0.72em; font-weight: 500; padding: 0.22em 0.6em; border-radius: 999px; letter-spacing: 0.01em; }
+.pill--high { color: var(--high); background: var(--high-bg); }
+.pill--medium { color: var(--medium); background: var(--medium-bg); }
+.pill--ok { color: var(--ok); background: var(--ok-bg); }
+
+.finding { padding: 1.1em 1.25em; border-top: 1px solid var(--ui-line); }
+.finding:first-child { border-top: 0; }
+.finding__t { font-weight: 500; letter-spacing: -0.01em; margin: 0.45em 0 0.3em; }
+.finding__d { color: var(--ui-muted); line-height: 1.4; }
+.finding__e { font-family: var(--mono); font-size: 0.82em; color: var(--ui-muted); margin-top: 0.55em; }
+.finding__a { margin-top: 0.55em; line-height: 1.4; }
+
+.photo { background-size: cover; background-position: center; filter: grayscale(1) contrast(1.05); }
+.credit { font-size: 12px; opacity: 0.7; }

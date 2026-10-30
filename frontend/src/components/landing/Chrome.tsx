@@ -37,10 +37,11 @@ export function AccountLink() {
 export function Footer() {
   return (
     <footer className="pc-foot">
-      <span>PacketCheck · remote-access checks</span>
+      <span>PacketCheck · we will never call you</span>
       <nav aria-label="Footer">
         <Link href="/#scan">Scanner</Link>
         <Link href="/pricing">Pricing</Link>
+        <Link href="/guides">Guides</Link>
         <Link href="/docs">Docs</Link>
         <Link href="/legal">Legal</Link>
       </nav>
